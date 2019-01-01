@@ -19,11 +19,11 @@
 #include "esp_heap_trace.h"
 #include "priv/esp_heap_caps_priv.h"
 
-#include "esp_log.h"
-
 //#define CONFIG_TRACE_ALL
 //#define CONFIG_TRACE_MEM_LINK 1
 //#define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
+
+#include "esp_log.h"
 
 #ifdef CONFIG_TRACE_ALL
 #define HEAP_INFO_STATE " is %s"
@@ -117,8 +117,9 @@ void heap_trace_dump(void)
         while (p != mem_end) {
             if (mem_blk_is_used(p) && mem_blk_is_traced(p)) {
                 mem2_blk_t *mem2_blk = (mem2_blk_t *)p;
+                size_t line = mem2_blk_line(mem2_blk);
 
-                if (!mem2_blk->line) {
+                if (!line) {
                     ESP_EARLY_LOGI(TAG, HEAP_INFO " caller func %p", HEAP_INFO_PARAM(p), mem2_blk->file);
                 } else {
                     const char *file = rindex(mem2_blk->file, '/');
@@ -127,7 +128,7 @@ void heap_trace_dump(void)
                     else
                         file = mem2_blk->file;
 
-                    ESP_EARLY_LOGI(TAG, HEAP_INFO " caller file %s line %d", HEAP_INFO_PARAM(p), file, mem2_blk->line);
+                    ESP_EARLY_LOGI(TAG, HEAP_INFO " caller file %s line %d", HEAP_INFO_PARAM(p), file, line);
                 }
             }
 #ifdef CONFIG_TRACE_ALL

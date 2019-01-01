@@ -1,9 +1,5 @@
 menu "ESP8266-specific"
 
-config APP_OFFSET
-       hex
-       default 0x1000
-
 choice NEWLIB_STDOUT_LINE_ENDING
     prompt "Line ending for UART output"
     default NEWLIB_STDOUT_LINE_ENDING_CRLF
@@ -49,6 +45,26 @@ config ESP_FILENAME_MACRO_NULL
     bool "null"
 endchoice
 
+config USING_NEW_ETS_VPRINTF
+    bool "Using new ets_vprintf instead of rom code"
+    default y
+    help
+        Enable this option, SDK will use new "ets_vprintf" function instead of old code "ets_vprintf" which is depend on ROM
+        code "ets_io_vprintf".
+
+        Note: Bootloader can't use this function.
+
+config LINK_ETS_PRINTF_TO_IRAM
+    bool "Link ets_printf to IRAM"
+    default n
+    help
+        Enable this option, SDK will link the old/new "ets_printf" and "ets_vprintf" to IRAM instead of flash.
+        So although flash can't be access for SoC when reading to writing, the "ets_printf" and "ets_vprintf" also can be used by user.
+
+        Using new "ets_vprintf" should cost more 1.6KB IRAM.
+
+        Note: Bootloader can't use this function.
+
 config SOC_FULL_ICACHE
     bool "Enable full cache mode"
     default n
@@ -61,8 +77,27 @@ config SOC_IRAM_SIZE
     default 0x8000 if SOC_FULL_ICACHE
     default 0xC000 if !SOC_FULL_ICACHE
 
+choice CONSOLE_UART
+    prompt "UART for console output"
+    default CONSOLE_UART_DEFAULT
+    help
+        Select whether to use UART for console output (through stdout and stderr).
+
+        - Default is to use UART0.
+        - If "Custom" is selected, UART0 or UART1 can be chosen.
+        - If "None" is selected, there will be no console output on any UART.
+
+config CONSOLE_UART_DEFAULT
+    bool "Default: UART0"
+config CONSOLE_UART_CUSTOM
+    bool "Custom"
+config CONSOLE_UART_NONE
+    bool "None"
+endchoice
+
 choice CONSOLE_UART_NUM
     prompt "UART peripheral to use for console output (0-1)"
+    depends on CONSOLE_UART_CUSTOM
     default CONSOLE_UART_CUSTOM_NUM_0
     help
         Configrate output console UART for "ets_printf", "printf", "ESP_LOGX" and so on.
@@ -75,15 +110,17 @@ endchoice
 
 config CONSOLE_UART_NUM
     int
+    default 0 if CONSOLE_UART_DEFAULT || CONSOLE_UART_NONE
     default 0 if CONSOLE_UART_CUSTOM_NUM_0
     default 1 if CONSOLE_UART_CUSTOM_NUM_1
 
 config CONSOLE_UART_BAUDRATE
     int "UART console baud rate"
+    depends on CONSOLE_UART_DEFAULT || CONSOLE_UART_CUSTOM
     default 74880
     range 1200 4000000
 
-config CONSOLE_UART_SWAP_IO
+config UART0_SWAP_IO
     bool "Swap UART0 I/O pins"
     default n
     help
@@ -108,7 +145,7 @@ config TASK_WDT
 
 config TASK_WDT_PANIC
     bool "Invoke panic handler on Task Watchdog timeout"
-    default n
+    default y
     help
         If this option is enabled, the Task Watchdog Timer will be configured to
         trigger the panic handler when it times out. And it may cost some time.
@@ -134,6 +171,12 @@ config TASK_WDT_TIMEOUT_S
     default 14 if TASK_WDT_TIMEOUT_14N
     default 15 if TASK_WDT_TIMEOUT_15N
 
+config RESET_REASON
+    bool "Enable reset reason"
+    default y
+    help
+        Enable this option, the reset reason function can be used, or compiler will show function linking error.
+
 config WIFI_PPT_TASKSTACK_SIZE
     int "ppT task stack size"
     default 2048
@@ -143,6 +186,12 @@ config WIFI_PPT_TASKSTACK_SIZE
         which calls promiscuous callback function. So if user's function is
         complex, the stack must be set larger.
 
+config EVENT_LOOP_STACK_SIZE
+    int "Event loop stack size"
+    default 2048
+    help
+        Configure the Event loop task stack size per application.
+
 config ESP8266_CORE_GLOBAL_DATA_LINK_IRAM
     bool "Link libcore.a internal global data to IRAM"
     default y
@@ -150,6 +199,19 @@ config ESP8266_CORE_GLOBAL_DATA_LINK_IRAM
     depends on !SOC_FULL_ICACHE
     help
         Link libcore.a internal global data(.bss .data COMMON) from DRAM to IRAM.
+
+choice CRYSTAL_USED
+    prompt "Crystal used in your module or board"
+    default CRYSTAL_USED_26MHZ
+    help
+        For most modules, 26MHz is the default crystal. If you use special module,
+        you can reconfigure this option.
+
+config CRYSTAL_USED_26MHZ
+    bool "26MHz"
+config CRYSTAL_USED_40MHZ
+    bool "40MHz"
+endchoice
 
 endmenu
 

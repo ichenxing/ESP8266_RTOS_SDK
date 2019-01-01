@@ -98,11 +98,11 @@ static void panic_stack(StackType_t *start_stk, StackType_t *end_stk)
 {
     uint32_t *start = (uint32_t *)start_stk, *end = (uint32_t *)end_stk;
     size_t i, j;
-    size_t size = end - start + 1;
+    size_t size = end - start;
 
     panic_str("          ");
     for (i = 0; i < STACK_VOL_NUM; i++) {
-        panic_data32(i * sizeof(StackType_t), 16);
+        panic_data32(i * sizeof(void *), 16);
         panic_str(" ");
     }
     panic_str("\r\n\r\n");
@@ -131,8 +131,10 @@ static void panic_stack(StackType_t *start_stk, StackType_t *end_stk)
  * 
  * @return none
  */
-static void panic_info(void *frame, int wdt)
+static __attribute__((noreturn)) void panic_info(void *frame, int wdt)
 {
+    extern int _chip_nmi_cnt;
+
     task_info_t *task;
     int *regs = (int *)frame;
     int x, y;
@@ -148,32 +150,45 @@ static void panic_info(void *frame, int wdt)
 
     if (wdt) {
         panic_str("Task watchdog got triggered.\r\n\r\n");
-        show_critical_info();
     }
     
-    if (xPortInIsrContext())
-        panic_str("Core 0 was running in ISR context:\r\n\r\n");
+    if (_chip_nmi_cnt) {
+        extern StackType_t _chip_nmi_stk, LoadStoreErrorHandlerStack;
 
-    if ((task = (task_info_t *)xTaskGetCurrentTaskHandle())) {
-        StackType_t *pdata = task->pxStack;
-        StackType_t *end = task->pxEndOfStack + 4;
+        _chip_nmi_cnt = 0;
+        panic_str("Core 0 was running in NMI context:\r\n\r\n");
 
-        // "Task stack [%s] stack from [%p] to [%p], total [%d] size\r\n\r\n"
-        panic_str("Task stack [");
-        panic_str(task->pcTaskName);
-        panic_str("] stack from [");
-        panic_data32((uint32_t)pdata, 16);
-        panic_str("] to [");
-        panic_data32((uint32_t)end, 16);
-        panic_str("], total [");
-        panic_data32((uint32_t)(end - pdata + 4), 10);
-        panic_str("] size\r\n\r\n");
-
-        panic_stack(pdata, end);
-
-        panic_str("\r\n\r\n");
+        panic_stack(&_chip_nmi_stk, &LoadStoreErrorHandlerStack);
     } else {
-        panic_str("No task\r\n\r\n");
+        if (xPortInIsrContext() && !wdt) {
+            extern StackType_t _chip_interrupt_stk, _chip_interrupt_tmp;
+
+            panic_str("Core 0 was running in ISR context:\r\n\r\n");
+
+            panic_stack(&_chip_interrupt_stk, &_chip_interrupt_tmp);
+        } else {
+            if ((task = (task_info_t *)xTaskGetCurrentTaskHandle())) {
+                StackType_t *pdata = task->pxStack;
+                StackType_t *end = task->pxEndOfStack + 4;
+
+                // "Task stack [%s] stack from [%p] to [%p], total [%d] size\r\n\r\n"
+                panic_str("Task stack [");
+                panic_str(task->pcTaskName);
+                panic_str("] stack from [");
+                panic_data32((uint32_t)pdata, 16);
+                panic_str("] to [");
+                panic_data32((uint32_t)end, 16);
+                panic_str("], total [");
+                panic_data32((uint32_t)(end - pdata), 10);
+                panic_str("] size\r\n\r\n");
+
+                panic_stack(pdata, end);
+
+                panic_str("\r\n\r\n");
+            } else {
+                panic_str("No task\r\n\r\n");
+            }
+        }
     }
 
     for (x = 0; x < 20; x += 4) {
@@ -195,7 +210,7 @@ static void panic_info(void *frame, int wdt)
     while (1);
 }
 
-void IRAM_ATTR panicHandler(void *frame, int wdt)
+void __attribute__((noreturn)) panicHandler(void *frame, int wdt)
 {
     int cnt = 10;
 
@@ -205,13 +220,10 @@ void IRAM_ATTR panicHandler(void *frame, int wdt)
         REG_WRITE(INT_ENA_WDEV, 0);
     }
 
-    // for panic the function that disable cache
-    Cache_Read_Enable_New();
-
     panic_info(frame, wdt);
 }
 
-void _esp_error_check_failed(esp_err_t rc, const char *file, int line, const char *function, const char *expression)
+void __attribute__((noreturn)) _esp_error_check_failed(esp_err_t rc, const char *file, int line, const char *function, const char *expression)
 {
     printf("ESP_ERROR_CHECK failed: esp_err_t 0x%x at %p\n", rc, __builtin_return_address(0));
     printf("file: \"%s\" line %d\nfunc: %s\nexpression: %s\n", file, line, function, expression);

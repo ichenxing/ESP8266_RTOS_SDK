@@ -52,6 +52,12 @@
 
 #define ESP_LWIP 1
 
+#ifdef CONFIG_LWIP_IPV6_MLD_SOCK
+#define ESP_LWIP_IPV6_MLD 1
+#else
+#define ESP_LWIP_IPV6_MLD 0
+#endif
+
 #ifdef CONFIG_ESP_UDP_SYNC_SEND
 #define ESP_UDP  1
 #endif
@@ -207,6 +213,8 @@
 #define ESP_LWIP_MEM_DBG                    1
 #endif
 
+size_t memp_malloc_get_size(size_t type);
+
 /*
  * @brief allocate an only DRAM memory block for LWIP pbuf
  * 
@@ -214,7 +222,7 @@
  * 
  * @return memory block pointer
  */
-void *mem_malloc_ll(size_t s);
+#define mem_malloc_ll(s)         heap_caps_malloc(s, MALLOC_CAP_8BIT)
 
 /*
  * @brief allocate an only DRAM memory pool for LWIP pbuf
@@ -223,7 +231,7 @@ void *mem_malloc_ll(size_t s);
  * 
  * @return memory pool pointer
  */
-void *memp_malloc_ll(size_t type);
+#define memp_malloc_ll(type)     heap_caps_malloc(memp_malloc_get_size(type), MALLOC_CAP_8BIT)
 #endif
 
 /**
@@ -353,7 +361,7 @@ void *memp_malloc_ll(size_t type);
  * MEMP_NUM_NETCONN: the number of struct netconns.
  * (only needed if you use the sequential API, like api_lib.c)
  */
-#define MEMP_NUM_NETCONN                10
+#define MEMP_NUM_NETCONN                CONFIG_LWIP_MAX_SOCKETS
 
 
 /**
@@ -713,7 +721,7 @@ void *memp_malloc_ll(size_t type);
  * LWIP_DHCP_AUTOIP_COOP==1: Allow DHCP and AUTOIP to be both enabled on
  * the same interface at the same time.
  */
-#define LWIP_DHCP_AUTOIP_COOP           0
+#define LWIP_DHCP_AUTOIP_COOP           CONFIG_LWIP_AUTOIP
 
 /**
  * LWIP_DHCP_AUTOIP_COOP_TRIES: Set to the number of DHCP DISCOVER probes
@@ -1246,7 +1254,7 @@ void *memp_malloc_ll(size_t type);
  * The queue size value itself is platform-dependent, but is passed to
  * sys_mbox_new() when tcpip_init is called.
  */
-#define TCPIP_MBOX_SIZE                 16
+#define TCPIP_MBOX_SIZE                 CONFIG_TCPIP_RECVMBOX_SIZE
 
 /**
  * Define this to something that triggers a watchdog. This is called from
@@ -1889,7 +1897,7 @@ void *memp_malloc_ll(size_t type);
  * DNS Server Option (as per RFC 6106) to copy a defined maximum number of DNS
  * servers to the DNS module.
  */
-#define LWIP_ND6_RDNSS_MAX_DNS_SERVERS  0
+#define LWIP_ND6_RDNSS_MAX_DNS_SERVERS  CONFIG_LWIP_ND6_RDNSS_MAX_DNS_SERVERS
 /**
  * @}
  */
@@ -2224,11 +2232,13 @@ void *memp_malloc_ll(size_t type);
  */
 
 #if ESP_UDP
-#if !LWIP_UDP || !LWIP_SOCKET || !ESP_LWIP
-#error "LWIP_UDP & LWIP_SOCKET & ESP_LWIP must be enable"
+#if !LWIP_UDP || !LWIP_SOCKET || !ESP_LWIP || !LWIP_NETIF_TX_SINGLE_PBUF
+#error "LWIP_UDP & LWIP_SOCKET & ESP_LWIP & LWIP_NETIF_TX_SINGLE_PBUF must be enable"
 #else
 #include "udp_sync.h"
 #endif
 #endif
+
+#define ESP_PING                        1
 
 #endif /* __LWIP_HDR_LWIPOPTS_H__ */

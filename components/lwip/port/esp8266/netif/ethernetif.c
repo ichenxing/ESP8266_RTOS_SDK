@@ -34,7 +34,7 @@ void wifi_station_set_default_hostname(uint8_t* hwaddr);
 #define IFNAME0 'e'
 #define IFNAME1 'n'
 
-
+#if ESP_TCP
 typedef struct pbuf_send_list {
     struct pbuf_send_list* next;
     struct pbuf* p;
@@ -44,8 +44,10 @@ typedef struct pbuf_send_list {
 
 static pbuf_send_list_t* pbuf_list_head = NULL;
 static int pbuf_send_list_num = 0;
+#endif
 static int low_level_send_cb(esp_aio_t* aio);
 
+#if ESP_TCP
 static inline bool check_pbuf_to_insert(struct pbuf* p)
 {
     uint8_t* buf = (uint8_t*)p->payload;
@@ -172,6 +174,7 @@ void send_from_list()
         }
     }
 }
+#endif
 
 /**
  * In this function, the hardware should be initialized.
@@ -213,6 +216,8 @@ static void low_level_init(struct netif* netif)
 static int low_level_send_cb(esp_aio_t* aio)
 {
     struct pbuf* pbuf = aio->arg;
+
+#if ESP_TCP
     wifi_tx_status_t* status = (wifi_tx_status_t*) & (aio->ret);
 
     if ((TX_STATUS_SUCCESS != status->wifi_tx_result) && check_pbuf_to_insert(pbuf)) {
@@ -235,6 +240,7 @@ static int low_level_send_cb(esp_aio_t* aio)
                                        status->wifi_tx_result, status->wifi_tx_lrc, status->wifi_tx_src, status->wifi_tx_rate));
         insert_to_list(aio->fd, aio->arg);
     }
+#endif
 
     pbuf_free(pbuf);
 
@@ -316,6 +322,11 @@ static int8_t low_level_output(struct netif* netif, struct pbuf* p)
         return ERR_ARG;
     }
 
+    if (!netif_is_up(netif)) {
+        LWIP_DEBUGF(NETIF_DEBUG, ("low_level_output: netif is not up\n"));
+        return ERR_RTE;
+    }
+
 #if ETH_PAD_SIZE
     pbuf_header(p, -ETH_PAD_SIZE); /* drop the padding word */
 #endif
@@ -340,12 +351,14 @@ static int8_t low_level_output(struct netif* netif, struct pbuf* p)
      */
     err = esp_aio_sendto(&aio, NULL, 0);
 #if ESP_UDP
-    udp_sync_set_ret(netif, err);
+    udp_sync_set_ret(netif, p, err);
 #endif
 
     if (err != ERR_OK) {
         if (err == ERR_MEM) {
+#if ESP_TCP
             insert_to_list(aio.fd, p);
+#endif
             err = ERR_OK;
         }
 

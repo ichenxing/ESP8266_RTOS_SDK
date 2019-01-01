@@ -551,6 +551,21 @@ udp_sendto_chksum(struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *dst_ip,
 
   LWIP_DEBUGF(UDP_DEBUG | LWIP_DBG_TRACE, ("udp_send\n"));
 
+#if LWIP_IPV4 && LWIP_IPV6
+#if ESP_LWIP_IPV6
+  /* Unwrap IPV4-mapped IPV6 addresses and convert to native IPV4 here */
+  if (IP_IS_V4MAPPEDV6(dst_ip)) {
+    ip_addr_t dest_ipv4;
+    unmap_ipv4_mapped_ipv6(ip_2_ip4(&dest_ipv4), ip_2_ip6(dst_ip));
+#if LWIP_CHECKSUM_ON_COPY && CHECKSUM_GEN_UP
+    return udp_sendto_chksum(pcb, p, &dest_ipv4, dst_port, have_chksum, chksum);
+#else
+    return udp_sendto(pcb, p, &dest_ipv4, dst_port);
+#endif /* LWIP_CHECKSUM_ON_COPY && CHECKSUM_GEN_UP */
+  }
+#endif /* ESP_LWIP_IPV6 */
+#endif /* LWIP_IPV4 && LWIP_IPV6 */
+
 #if LWIP_IPV6 || (LWIP_IPV4 && LWIP_MULTICAST_TX_OPTIONS)
   if (ip_addr_ismulticast(dst_ip_route)) {
 #if LWIP_IPV6
@@ -865,6 +880,10 @@ udp_sendto_if_src_chksum(struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *d
   ttl = pcb->ttl;
 #endif /* LWIP_MULTICAST_TX_OPTIONS */
 
+#if ESP_UDP
+  udp_sync_cache_udp(pcb);
+#endif
+
   LWIP_DEBUGF(UDP_DEBUG, ("udp_send: UDP checksum 0x%04"X16_F"\n", udphdr->chksum));
   LWIP_DEBUGF(UDP_DEBUG, ("udp_send: ip_output_if (,,,,0x%02"X16_F",)\n", (u16_t)ip_proto));
   /* output to IP */
@@ -874,6 +893,10 @@ udp_sendto_if_src_chksum(struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *d
 
   /* @todo: must this be increased even if error occurred? */
   MIB2_STATS_INC(mib2.udpoutdatagrams);
+
+#if ESP_UDP
+  udp_sync_clear_udp();
+#endif
 
   /* did we chain a separate header pbuf earlier? */
   if (q != p) {
@@ -1116,6 +1139,11 @@ udp_remove(struct udp_pcb *pcb)
       }
     }
   }
+
+#if ESP_UDP
+  udp_sync_close_udp(pcb);
+#endif
+
   memp_free(MEMP_UDP_PCB, pcb);
 }
 

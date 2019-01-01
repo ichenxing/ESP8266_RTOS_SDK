@@ -29,10 +29,12 @@
 #include "esp_heap_caps_init.h"
 #include "esp_task_wdt.h"
 #include "internal/esp_wifi_internal.h"
+#include "internal/esp_system_internal.h"
 
 #define FLASH_MAP_ADDR 0x40200000
+#define FLASH_MAP_SIZE 0x00100000
 
-extern void chip_boot(size_t start_addr);
+extern void chip_boot(void);
 extern int rtc_init(void);
 extern int mac_init(void);
 extern int base_gpio_init(void);
@@ -40,6 +42,7 @@ extern int watchdog_init(void);
 extern int wifi_timer_init(void);
 extern int wifi_nvs_init(void);
 extern esp_err_t esp_pthread_init(void);
+extern void phy_get_bb_evm(void);
 
 static void user_init_entry(void *param)
 {
@@ -54,6 +57,8 @@ static void user_init_entry(void *param)
     for (func = &__init_array_start; func < &__init_array_end; func++)
         func[0]();
 
+    phy_get_bb_evm();
+
     assert(nvs_flash_init() == 0);
     assert(wifi_nvs_init() == 0);
     assert(rtc_init() == 0);
@@ -63,6 +68,10 @@ static void user_init_entry(void *param)
     assert(wifi_timer_init() == 0);
 
     esp_wifi_set_rx_pbuf_mem_type(WIFI_RX_PBUF_DRAM);
+
+#if CONFIG_RESET_REASON
+    esp_reset_reason_init();
+#endif
 
 #ifdef CONFIG_TASK_WDT
     esp_task_wdt_init();
@@ -84,7 +93,7 @@ void call_user_start(size_t start_addr)
 
     extern int _bss_start, _bss_end;
 
-    esp_image_header_t *head = (esp_image_header_t *)(FLASH_MAP_ADDR + CONFIG_PARTITION_TABLE_CUSTOM_APP_BIN_OFFSET);
+    esp_image_header_t *head = (esp_image_header_t *)(FLASH_MAP_ADDR + (start_addr & (FLASH_MAP_SIZE - 1)));
     esp_image_segment_header_t *segment = (esp_image_segment_header_t *)((uintptr_t)head + sizeof(esp_image_header_t));
 
     for (i = 0; i < 3; i++) {
@@ -107,7 +116,9 @@ void call_user_start(size_t start_addr)
         "wsr        a0, vecbase\n"
         : : :"memory");
 
-    chip_boot(start_addr);
+#ifndef CONFIG_BOOTLOADER_INIT_SPI_FLASH
+    chip_boot();
+#endif
 
     /* clear bss data */
     for (p = &_bss_start; p < &_bss_end; p++)

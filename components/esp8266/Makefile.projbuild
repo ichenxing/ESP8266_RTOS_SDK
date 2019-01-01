@@ -1,5 +1,5 @@
-SUPPORTED_TOOLCHAIN_COMMIT_DESC := 1.22.0-88-gde0bdc1
-SUPPORTED_TOOLCHAIN_GCC_VERSIONS := 4.8.5
+SUPPORTED_TOOLCHAIN_COMMIT_DESC := 1.22.0-92-g8facf4c
+SUPPORTED_TOOLCHAIN_GCC_VERSIONS := 5.2.0
 
 ifdef CONFIG_ESP8266_LEGACY
 
@@ -81,3 +81,41 @@ ifdef CONFIG_ESP_FILENAME_MACRO_NULL
 CFLAGS += -D__ESP_FILE__='"null"'
 CXXFLAGS += -D__ESP_FILE__='"null"'
 endif
+
+.PHONY: ota ota-clean
+
+RAW_BIN := ./build/$(PROJECT_NAME).bin
+OTA_BIN := ./build/$(PROJECT_NAME).ota.bin
+OTA1_BIN := ./build/$(PROJECT_NAME).app1.bin
+OTA2_BIN := ./build/$(PROJECT_NAME).app2.bin
+
+$(OTA2_BIN): all_binaries
+ifeq ($(CONFIG_ESPTOOLPY_FLASHSIZE), "1MB")
+	@rm -f ./build/esp8266/esp8266_out.ld
+	@make APP_OFFSET=$(CONFIG_APP2_OFFSET) APP_SIZE=$(CONFIG_APP2_SIZE) CFLAGS= CXXFLAGS=
+endif
+	@cp $(RAW_BIN) $(OTA2_BIN)
+	@echo [GEN] $(OTA2_BIN)
+
+$(OTA1_BIN): all_binaries
+ifeq ($(CONFIG_ESPTOOLPY_FLASHSIZE), "1MB")
+	@rm -f ./build/esp8266/esp8266_out.ld
+endif
+	@make APP_OFFSET=$(CONFIG_APP1_OFFSET) APP_SIZE=$(CONFIG_APP1_SIZE) CFLAGS= CXXFLAGS=
+	@cp $(RAW_BIN) $(OTA1_BIN)
+	@echo [GEN] $(OTA1_BIN)
+
+$(OTA_BIN): $(OTA1_BIN) $(OTA2_BIN)
+	@cp $(OTA1_BIN) $(OTA_BIN)
+ifeq ($(CONFIG_ESPTOOLPY_FLASHSIZE), "1MB")
+	@cat $(OTA2_BIN) >> $(OTA_BIN)
+endif
+	@cp $(OTA1_BIN) $(RAW_BIN)
+	@echo [GEN] $(OTA_BIN)
+
+ota: $(OTA_BIN)
+
+ota-clean:
+	@rm -f $(OTA_BIN) $(OTA1_BIN) $(OTA2_BIN)
+
+clean: ota-clean
