@@ -68,8 +68,8 @@ SECTIONS
   .rtc.data :
   {
     _rtc_data_start = ABSOLUTE(.);
-    *(.rtc.data)
-    *(.rtc.rodata)
+    *(.rtc.data .rtc.data.*)
+    *(.rtc.rodata .rtc.rodata.*)
     _rtc_data_end = ABSOLUTE(.);
   } > rtc_seg
 
@@ -106,6 +106,12 @@ SECTIONS
     *(.init)
     *(.iram1 .iram1.*)
     *libspi_flash.a:spi_flash_raw.o(.literal .text .literal.* .text.*)
+#ifdef CONFIG_ESP8266_WIFI_DEBUG_LOG_ENABLE
+    *libpp_dbg.a:(.literal .text .literal.* .text.*)
+#else
+    *libpp.a:(.literal .text .literal.* .text.*)
+#endif
+    *libphy.a:(.literal .text .literal.* .text.*)
     *(.literal .text .stub .gnu.warning .gnu.linkonce.literal.* .gnu.linkonce.t.*.literal .gnu.linkonce.t.*)
     *(.fini.literal)
     *(.fini)
@@ -120,7 +126,11 @@ SECTIONS
 #endif
 
 #ifdef CONFIG_ESP8266_CORE_GLOBAL_DATA_LINK_IRAM
+#ifdef CONFIG_ESP8266_WIFI_DEBUG_LOG_ENABLE
+    *libcore_dbg.a:(.bss .data .bss.* .data.* COMMON)
+#else
     *libcore.a:(.bss .data .bss.* .data.* COMMON)
+#endif
 #endif
 
 #ifdef CONFIG_FREERTOS_GLOBAL_DATA_LINK_IRAM
@@ -140,16 +150,13 @@ SECTIONS
   .data : ALIGN(4)
   {
     _data_start = ABSOLUTE(.);
-    *(.data)
-    *(.data.*)
-    *(.dram0)
+    *(.data .data.*)
+    *(.dram0 .dram0.*)
     *(.gnu.linkonce.d.*)
     *(.data1)
-    *(.sdata)
-    *(.sdata.*)
+    *(.sdata .sdata.*)
     *(.gnu.linkonce.s.*)
-    *(.sdata2)
-    *(.sdata2.*)
+    *(.sdata2 .sdata2.*)
     *(.gnu.linkonce.s2.*)
     *(.jcr)
     _data_end = ABSOLUTE(.);
@@ -158,7 +165,11 @@ SECTIONS
   .rodata : ALIGN(4)
   {
     _rodata_start = ABSOLUTE(.);
+#ifdef CONFIG_ESP8266_WIFI_DEBUG_LOG_ENABLE
+    *libpp_dbg.a:(.rodata.* .rodata)
+#else
     *libpp.a:(.rodata.* .rodata)
+#endif
     *liblog.a:(.rodata.* .rodata)
     *(.gnu.linkonce.r.*)
     *(.rodata1)
@@ -208,16 +219,13 @@ SECTIONS
     . = ALIGN (8);
     _bss_start = ABSOLUTE(.);
     *(.dynsbss)
-    *(.sbss)
-    *(.sbss.*)
+    *(.sbss .sbss.*)
     *(.gnu.linkonce.sb.*)
     *(.scommon)
-    *(.sbss2)
-    *(.sbss2.*)
+    *(.sbss2 .sbss2.*)
     *(.gnu.linkonce.sb2.*)
     *(.dynbss)
-    *(.bss)
-    *(.bss.*)
+    *(.bss .bss.*)
     *(.gnu.linkonce.b.*)
     *(COMMON)
     . = ALIGN (8);
@@ -230,13 +238,10 @@ SECTIONS
   .irom0.text : ALIGN(4)
   {
     _irom0_text_start = ABSOLUTE(.);
+    *(.user.data .user.data.*)
     *(.rodata.* .rodata .irom0.literal .irom.literal .irom.text.literal .irom0.text .irom.text)
     *(.literal.* .text.*)
-
-    . = ALIGN(16);
-    __start_ksymatabesp_socket = .;
-    *(ksymatabesp_socket)
-    __stop_ksymatabesp_socket = .;
+    *(.rodata2.* .rodata2 .literal2.* .literal2 .text2.* .text2)
 
     _irom0_text_end = ABSOLUTE(.);
   } >irom0_0_seg :irom0_0_phdr

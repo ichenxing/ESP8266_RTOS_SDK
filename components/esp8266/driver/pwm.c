@@ -26,7 +26,6 @@
 #include "esp_heap_caps.h"
 
 #include "driver/pwm.h"
-
 #include "driver/gpio.h"
 
 // Temporary use the FreeRTOS critical function
@@ -49,7 +48,7 @@ static const char *TAG = "pwm";
 #define AHEAD_TICKS0 0
 #define AHEAD_TICKS1 6
 #define AHEAD_TICKS2 8
-#define AHEAD_TICKS3 20
+#define AHEAD_TICKS3 2
 #define MAX_TICKS    10000000ul
 
 #define WDEVTSF0_TIME_LO     0x3ff21004
@@ -61,7 +60,7 @@ static const char *TAG = "pwm";
 #define WDEVTSF0TIMER_ENA    0x3ff21098
 #define WDEV_TSF0TIMER_ENA   BIT(31)
 
-#define PWM_VERSION          "PWM v3.0"
+#define PWM_VERSION          "PWM v3.2"
 
 typedef struct {
     uint32_t duty;  /*!< pwm duty for each channel */
@@ -114,16 +113,16 @@ int wDev_MacTimSetFunc(void (*handle)(void));
 
 static void pwm_phase_init(void)
 {
-    int16_t time_delay;
+    int32_t time_delay;
     uint8_t i;
 
     for (i = 0; i < pwm_obj->channel_num; i++) {
         if (-180 < pwm_obj->pwm_info[i].phase && pwm_obj->pwm_info[i].phase < 0) {
-            time_delay = 0 - ((0 - pwm_obj->pwm_info[i].phase) * pwm_obj->depth / 180);
+            time_delay = 0 - ((0 - pwm_obj->pwm_info[i].phase) * pwm_obj->depth / 360);
         } else if (pwm_obj->pwm_info[i].phase == 0) {
             continue;
         } else if (180 > pwm_obj->pwm_info[i].phase && pwm_obj->pwm_info[i].phase > 0) {
-            time_delay = pwm_obj->pwm_info[i].phase * pwm_obj->depth / 180;
+            time_delay = pwm_obj->pwm_info[i].phase * pwm_obj->depth / 360;
         } else {
             ESP_LOGE(TAG, "channel[%d]  phase error %d, valid ramge from (-180,180)\n", i, pwm_obj->pwm_info[i].phase);
             continue;
@@ -274,7 +273,7 @@ static void pwm_timer_enable(uint8_t enable)
 static void IRAM_ATTR pwm_timer_intr_handler(void)
 {
     //process continous event
-    uint32_t mask = 0;
+    uint32_t mask = REG_READ(PERIPHS_GPIO_BASEADDR + GPIO_OUT_ADDRESS);
 
     // In the interrupt handler, first check for data updates, then switch to the updated array at the end of a cycle, start outputting new PWM waveforms, and clear the update flag.
     while (1) {
@@ -290,7 +289,6 @@ static void IRAM_ATTR pwm_timer_intr_handler(void)
                     pwm_obj->run_pwm_toggle = (pwm_obj->run_pwm_toggle ^ 0x1);
                     pwm_obj->update_done = 0;
                 }
-                mask = REG_READ(PERIPHS_GPIO_BASEADDR + GPIO_OUT_ADDRESS);
                 mask = mask & (~pwm_obj->single->run_pwm_param[pwm_obj->single->run_channel_num - 1].io_clr_mask);
                 mask = mask | pwm_obj->single->run_pwm_param[pwm_obj->single->run_channel_num - 1].io_set_mask;
                 REG_WRITE(PERIPHS_GPIO_BASEADDR + GPIO_OUT_ADDRESS, mask);
@@ -316,7 +314,7 @@ static void IRAM_ATTR pwm_timer_intr_handler(void)
     }
 
     REG_WRITE(WDEVTSFSW0_LO, 0);
-    //WARNING, pwm_obj->this_target - AHEAD_TICKS1 should be bigger than 20 (https problem) 
+    //WARNING, pwm_obj->this_target - AHEAD_TICKS1 should be bigger than 2
     REG_WRITE(WDEVTSF0_TIMER_LO, pwm_obj->this_target - AHEAD_TICKS1);
     REG_WRITE(WDEVTSF0TIMER_ENA, WDEV_TSF0TIMER_ENA);
 }

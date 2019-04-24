@@ -14,7 +14,7 @@
 
 #include "sdkconfig.h"
 
-#ifdef CONFIG_TARGET_PLATFORM_ESP32
+#ifdef CONFIG_IDF_TARGET_ESP32
 
 #include <string.h>
 #include "esp_flash_partitions.h"
@@ -91,7 +91,7 @@ esp_err_t esp_partition_table_basic_verify(const esp_partition_info_t *partition
 
 #endif
 
-#ifdef CONFIG_TARGET_PLATFORM_ESP8266
+#ifdef CONFIG_IDF_TARGET_ESP8266
 
 #include <stdbool.h>
 #include <string.h>
@@ -109,7 +109,7 @@ esp_err_t esp_partition_table_basic_verify(const esp_partition_info_t *partition
 {
     int md5_found = 0;
     int num_parts;
-    uint32_t chip_size = flashchip.chip_size;
+    uint32_t chip_size = g_rom_flashchip.chip_size;
     *num_partitions = 0;
 
     for (num_parts = 0; num_parts < ESP_PARTITION_TABLE_MAX_ENTRIES; num_parts++) {

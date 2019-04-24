@@ -14,7 +14,7 @@
 
 #include "sdkconfig.h"
 
-#ifdef CONFIG_TARGET_PLATFORM_ESP32
+#ifdef CONFIG_IDF_TARGET_ESP32
 
 #include <string.h>
 #include <stdint.h>
@@ -536,7 +536,7 @@ void __assert_func(const char *file, int line, const char *func, const char *exp
 
 #endif
 
-#ifdef CONFIG_TARGET_PLATFORM_ESP8266
+#ifdef CONFIG_IDF_TARGET_ESP8266
 
 #include <string.h>
 
@@ -648,6 +648,8 @@ static void update_flash_config(const esp_image_header_t* pfhdr)
 
     ESP_LOGD(TAG, "bootloader initialize SPI flash clock and I/O");
 #endif /* CONFIG_BOOTLOADER_INIT_SPI_FLASH */
+
+    Cache_Read_Disable();
 }
 
 static void print_flash_info(const esp_image_header_t* phdr)
